@@ -1,0 +1,4 @@
+---
+
+# The user that will be created and used in the remote server
+ansible_remote_user: "ansible"

@@ -1,0 +1,73 @@
+---
+
+####################
+#### SETUP USER ####
+####################
+
+- name: Make sure we have a 'wheel' group
+  group:
+    name: wheel
+    state: present
+
+- name: Allow 'wheel' group to have passwordless sudo
+  lineinfile:
+    path: /etc/sudoers
+    state: present
+    regexp: '^%wheel'
+    line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+    validate: '/usr/sbin/visudo -cf %s'
+
+- name: Create a new user
+  user:
+    name: "{{ ansible_remote_user }}"
+    state: present
+    groups: wheel
+    append: true
+    create_home: true
+    shell: /bin/bash
+
+- name: Enableg external access for our user
+  authorized_key:
+    user: "{{ ansible_remote_user }}"
+    state: present
+    exclusive: no
+    key: "{{ lookup('file', lookup('env','HOME') + '/.ssh/id_rsa.pub') }}"
+
+####################
+#### SECURE SSH ####
+####################
+
+- name: Disable password authentication on your Server
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify:
+    - restart_ssh
+
+- name: Prevent SSH root login with password
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin without-password'
+  notify:
+    - restart_ssh
+
+####################
+## SETUP FIREWALL ##
+####################
+
+- name: Set up a basic firewall
+  ufw:
+    rule: allow
+    name: OpenSSH
+  notify:
+    - reload_ufw
+
+- name: Default firewall policy
+  ufw:
+    state: enabled
+    default: deny
+    direction: incoming
+  notify:
+    - reload_ufw
